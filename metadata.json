@@ -1,0 +1,5 @@
+{
+  "name": "Civic Architect",
+  "description": "A modern citizen engagement portal for reporting and tracking civic infrastructure issues with AI-powered analysis.",
+  "requestFramePermissions": ["camera", "geolocation"]
+}

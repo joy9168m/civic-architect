@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && 
+        (
+          (request.auth.token.email == "sourish3108dps@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == role)
+        );
+    }
+
+    function isAdmin() {
+      return hasRole('admin') || hasRole('dev');
+    }
+
+    function isDev() {
+      return hasRole('dev');
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['citizen', 'admin', 'dev'];
+    }
+
+    function isValidIssue(data) {
+      return data.keys().hasAll(['title', 'category', 'reportedAt', 'reportedBy']) &&
+             data.title is string && data.title.size() < 200 &&
+             data.category is string &&
+             data.reportedBy == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) || isAdmin();
+    }
+
+    match /issues/{issueId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidIssue(request.resource.data);
+      allow update: if isAdmin() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy']));
+      allow delete: if isAdmin();
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}

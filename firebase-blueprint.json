@@ -1,0 +1,54 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Application user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["citizen", "admin", "dev"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Issue": {
+      "title": "Issue",
+      "description": "A reported civic issue",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Low", "Moderate", "Critical"] },
+        "status": { "type": "string", "enum": ["Pending", "In Progress", "Resolved", "Investigating"] },
+        "location": { "type": "string" },
+        "address": { "type": "string" },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "reportedAt": { "type": "string", "format": "date-time" },
+        "reportedBy": { "type": "string" },
+        "authorName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "resolutionImageUrl": { "type": "string" },
+        "adminNote": { "type": "string" },
+        "upvotes": { "type": "integer" },
+        "upvotedBy": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "category", "reportedAt", "reportedBy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/issues/{issueId}": {
+      "schema": "Issue",
+      "description": "Civic issues"
+    }
+  }
+}
