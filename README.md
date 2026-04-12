@@ -2,7 +2,7 @@
 
 **AI-powered civic issue reporting platform** — citizens report infrastructure problems, AI auto-categorizes them, admins track and resolve them.
 
-Built for the III Hackathon by **Sourish, John Dick, Onkit & Debo**.
+Built for the III Hackathon by **Sourish, Joydeep, Ankit & Debojyoti**.
 
 ---
 
@@ -214,7 +214,7 @@ The AI config is in `src/lib/gemini.ts`. It uses structured output (`responseMim
 
 ---
 
-## 🤝 How to Contribute (for John Dick, Onkit & Debo)
+## 🤝 How to Contribute 
 
 ### Git Workflow
 
