@@ -2,7 +2,7 @@
 
 **AI-powered civic issue reporting platform** — citizens report infrastructure problems, AI auto-categorizes them, admins track and resolve them.
 
-Built for the III Hackathon by **Sourish, John Dick, Onkit & Debo**.
+Built for the III Hackathon by **Sourish, Joydeep, Ankit & Debojyoti**.
 
 ---
 
