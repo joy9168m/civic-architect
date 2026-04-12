@@ -31,10 +31,6 @@ export default function AdminDashboard() {
   const [newIssue, setNewIssue] = useState({ title: '', description: '', category: 'Road Damage', severity: 'Moderate' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [issueToDelete, setIssueToDelete] = useState<string | null>(null);
-  // Admin notes
-  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
   // Full screen image view
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -129,24 +125,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const startEditNote = (issue: any) => {
-    setEditingNoteId(issue.id);
-    setNoteText(issue.adminNote || '');
-  };
 
-  const saveNote = async () => {
-    if (!editingNoteId) return;
-    setSavingNote(true);
-    try {
-      await updateDoc(doc(db, 'issues', editingNoteId), { adminNote: noteText });
-      toast('Admin note saved', 'success');
-      setEditingNoteId(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `issues/${editingNoteId}`);
-    } finally {
-      setSavingNote(false);
-    }
-  };
 
   const stats = {
     total: issues.length,
@@ -272,7 +251,6 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Category</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Severity</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Status</th>
-                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Admin Note</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Assigned Crew</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Reported</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline text-right">Actions</th>
@@ -332,35 +310,7 @@ export default function AdminDashboard() {
                           <option>Resolved</option>
                         </select>
                       </td>
-                      <td className="px-6 py-5 max-w-[200px]">
-                        {editingNoteId === issue.id ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              value={noteText}
-                              onChange={(e) => setNoteText(e.target.value)}
-                              className="flex-1 text-xs bg-surface-container-low border border-outline-variant/30 rounded-lg px-2 py-1.5 outline-none focus:border-primary"
-                              placeholder="Add note..."
-                              autoFocus
-                              onKeyDown={(e) => { if (e.key === 'Enter') saveNote(); if (e.key === 'Escape') setEditingNoteId(null); }}
-                            />
-                            <button onClick={saveNote} disabled={savingNote} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
-                              <Save size={14} />
-                            </button>
-                            <button onClick={() => setEditingNoteId(null)} className="p-1 text-outline hover:bg-surface-container rounded">
-                              <X size={14} />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => startEditNote(issue)}
-                            className="text-xs text-outline hover:text-primary transition-colors flex items-center gap-1 truncate max-w-full"
-                            title={issue.adminNote || 'Click to add note'}
-                          >
-                            <MessageSquare size={12} className="shrink-0" />
-                            <span className="truncate">{issue.adminNote || 'Add note...'}</span>
-                          </button>
-                        )}
-                      </td>
+
                       <td className="px-6 py-5">
                         <select
                           value={issue.assignedWorkerId || ''}

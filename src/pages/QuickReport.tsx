@@ -392,13 +392,13 @@ export default function QuickReport() {
                 onClick={handleSubmit}
                 disabled={submitting}
                 className={`w-full py-5 rounded-3xl text-white text-xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 ${
-                  duplicates.length > 0 && duplicates[0].duplicateScore > 0.8
+                  duplicates[0]?.duplicateScore > 0.8
                     ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
                     : 'bg-primary hover:bg-primary-container shadow-primary/20'
                 }`}
               >
                 {submitting ? <Loader2 className="animate-spin" /> : <Send size={24} />}
-                {duplicates.length > 0 && duplicates[0].duplicateScore > 0.8 ? 'Merge Report & Boost Priority' : 'Submit Report'}
+                {duplicates[0]?.duplicateScore > 0.8 ? 'Merge Report & Boost Priority' : 'Submit Report'}
               </button>
             </motion.section>
           )}

@@ -149,7 +149,7 @@ export default function Navbar({ user, userData, login, logout }: NavbarProps) {
                         Admin Portal
                       </Link>
                     )}
-                    {user?.email === 'joydeepmondal9168j@gmail.com' && (
+                    {(userData?.role === 'dev' || user?.email === 'joydeepmondal9168j@gmail.com') && (
                       <Link to="/dev" className="w-full flex items-center gap-3 px-5 py-3 text-[11px] text-amber-600 hover:bg-amber-500/10 rounded-xl transition-all font-black uppercase tracking-[0.15em]">
                         <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center"><Code size={16} /></div>
                         Dev Portal
