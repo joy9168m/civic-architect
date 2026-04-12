@@ -68,3 +68,42 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
     return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   }
 }
+
+/**
+ * Calculate Priority Score dynamically based on Severity, Upvotes, and Duplicate Volume
+ */
+export function calculatePriorityScore(
+  severityStr: string, 
+  upvotes: number = 0, 
+  duplicateVolume: number = 0
+): number {
+  const severityMap: Record<string, number> = {
+    'Low': 1, 'Moderate': 2, 'Critical': 5
+  };
+  const baseSeverity = severityMap[severityStr] || 2;
+  const score = (baseSeverity * 10) + 
+                (15 * Math.log10(upvotes + 1)) + 
+                (20 * Math.log10(duplicateVolume + 1));
+                
+  return parseFloat(score.toFixed(2));
+}
+
+/**
+ * Forward-geocode address via Nominatim.
+ * Returns lat/lng pair.
+ */
+export async function forwardGeocode(address: string): Promise<{lat: number, lng: number} | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

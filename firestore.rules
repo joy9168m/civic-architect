@@ -17,11 +17,15 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isAuthenticated() && 
-        (
-          (request.auth.token.email == "sourish3108dps@gmail.com" && request.auth.token.email_verified == true) ||
-          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == role)
-        );
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getUserData().role == role;
+    }
+
+    function isWorker() {
+      return hasRole('worker');
+    }
+
+    function isAssignedWorker() {
+      return isWorker() && resource.data.assignedWorkerId == request.auth.uid;
     }
 
     function isAdmin() {
@@ -36,7 +40,7 @@ service cloud.firestore {
       return data.keys().hasAll(['uid', 'email', 'role']) &&
              data.uid is string &&
              data.email is string &&
-             data.role in ['citizen', 'admin', 'dev'];
+             data.role in ['citizen', 'admin', 'dev', 'worker'];
     }
 
     function isValidIssue(data) {
@@ -52,14 +56,19 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data);
+      allow create: if isAuthenticated() && request.auth.uid == userId && isValidUser(request.resource.data) &&
+        (
+          (request.auth.token.email == "joydeepmondal9168j@gmail.com" && request.resource.data.role == 'admin') ||
+          (request.auth.token.email == "sourish@gmail.com" && request.resource.data.role == 'dev') ||
+          ((request.resource.data.role == 'citizen' || request.resource.data.role == 'worker') && request.auth.token.email != "joydeepmondal9168j@gmail.com" && request.auth.token.email != "sourish@gmail.com")
+        );
       allow update: if isOwner(userId) || isAdmin();
     }
 
     match /issues/{issueId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isValidIssue(request.resource.data);
-      allow update: if isAdmin() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy']));
+      allow create: if (isAuthenticated() && isValidIssue(request.resource.data)) || isAdmin() || request.auth.token.email == "joydeepmondal9168j@gmail.com";
+      allow update: if isAdmin() || (isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes', 'upvotedBy'])) || (isAssignedWorker() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'resolutionImageUrl']));
       allow delete: if isAdmin();
     }
     

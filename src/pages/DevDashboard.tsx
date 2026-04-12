@@ -13,8 +13,28 @@ import { toast } from '../components/Toast';
 import { CATEGORY_IDS, SEVERITY_OPTIONS } from '../lib/constants';
 
 const MOCK_TITLES = [
-  'Pothole on Main St', 'Overflowing Bin', 'Broken Street Lamp', 
-  'Graffiti on Wall', 'Burst Pipe', 'Cracked Sidewalk'
+  'Massive Pothole on Main St', 'Overflowing Public Bin', 'Broken Street Lamp', 
+  'Graffiti on Community Center', 'Burst Pipe / Water Leak', 'Dangerous Cracked Sidewalk',
+  'Illegal Dumping Site', 'Fallen Tree Branch', 'Traffic Light Malfunction', 'Abandoned Vehicle'
+];
+
+const MOCK_NAMES = [
+  'Sarah Jenkins', 'Marcus Rivera', 'Emily Chen', 'David Patel', 
+  'Jessica Wright', 'Michael Chang', 'Sophie Martin', 'James Kim',
+  'Anna Thompson', 'Robert Wilson'
+];
+
+const MOCK_IMAGES = [
+  'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1595278069441-2cf29f8005a4?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1516198642999-5ea0cbdd6cc9?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1627067345864-4e2bbffafe26?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1562602796-039c9480d19f?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1522067746430-b3013d500cb4?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1606132717147-380d0dcefae2?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1584464491033-06628f3a6b7b?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1533654497670-652a22fd6fe7?auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1605807963391-766b1ba85c39?auto=format&fit=crop&q=80',
 ];
 
 export default function DevDashboard() {
@@ -47,31 +67,57 @@ export default function DevDashboard() {
     addLog('Starting mock issue generation...');
     try {
       const batch = writeBatch(db);
-      for (let i = 0; i < 5; i++) {
+      
+      // Select a random epicenter to demonstrate the "Geo Clustering" effect
+      const epicenterLat = 37.7749 + (Math.random() - 0.5) * 0.05;
+      const epicenterLng = -122.4194 + (Math.random() - 0.5) * 0.05;
+
+      for (let i = 0; i < 10; i++) {
+        // The first 5 issues will artificially form a dense "hotspot" epicenter
+        // The remaining 5 are scattered outliers to demonstrate low-severity/low-interaction points
+        const isEpicenter = i < 5;
+        
+        const lat = isEpicenter 
+            ? epicenterLat + (Math.random() - 0.5) * 0.002 // Tightly clustered
+            : 37.7749 + (Math.random() - 0.5) * 0.15;      // Broadly scattered
+            
+        const lng = isEpicenter 
+            ? epicenterLng + (Math.random() - 0.5) * 0.002 
+            : -122.4194 + (Math.random() - 0.5) * 0.15;
+            
         const cat = CATEGORY_IDS[Math.floor(Math.random() * CATEGORY_IDS.length)];
         const title = MOCK_TITLES[Math.floor(Math.random() * MOCK_TITLES.length)];
-        const sev = SEVERITY_OPTIONS[Math.floor(Math.random() * SEVERITY_OPTIONS.length)];
+        const author = MOCK_NAMES[Math.floor(Math.random() * MOCK_NAMES.length)];
+        const img = MOCK_IMAGES[Math.floor(Math.random() * MOCK_IMAGES.length)];
+        
+        // Emulate dynamic human interactions: The Core epicenter issue gets massive attention
+        const isCoreIssue = isEpicenter && i === 0;
+        const sev = isCoreIssue ? 'Critical' : SEVERITY_OPTIONS[Math.floor(Math.random() * SEVERITY_OPTIONS.length)];
+        const upvotes = isCoreIssue ? Math.floor(Math.random() * 200) + 150 : Math.floor(Math.random() * 15);
+        const duplicateVolume = isCoreIssue ? Math.floor(Math.random() * 10) + 5 : 0;
+        
         const newDocRef = doc(collection(db, 'issues'));
         batch.set(newDocRef, {
           title: `${title} #${Math.floor(Math.random() * 1000)}`,
-          description: 'Automated mock report generated for testing purposes.',
+          description: isCoreIssue ? 'CRITICAL EPICENTER: Massive civic failure requiring immediate attention. Multiple duplicates detected in this exact vicinity.' : 'This is a standard demonstrative issue logged for the hackathon showcase.',
           category: cat,
           severity: sev,
-          status: 'Pending',
-          reportedAt: new Date().toISOString(),
-          reportedBy: 'dev-bot',
-          authorName: 'System Bot',
-          imageUrl: `https://picsum.photos/seed/${Math.random()}/800/600`,
-          upvotes: Math.floor(Math.random() * 50),
+          status: Math.random() > 0.8 ? 'In Progress' : 'Pending',
+          reportedAt: new Date(Date.now() - Math.floor(Math.random() * 1000000000)).toISOString(),
+          reportedBy: `mock-user-${Math.floor(Math.random() * 10000)}`,
+          authorName: author,
+          imageUrl: img,
+          upvotes: upvotes,
           upvotedBy: [],
-          address: 'System Generated Location',
-          lat: 37.7749 + (Math.random() - 0.5) * 0.1,
-          lng: -122.4194 + (Math.random() - 0.5) * 0.1,
+          duplicateVolume: duplicateVolume,
+          address: isCoreIssue ? 'EPICENTER ZONE' : 'Downtown Metro Area',
+          lat: lat,
+          lng: lng,
         });
       }
       await batch.commit();
-      addLog('Generated 5 mock issues atomically.');
-      toast('Generated 5 mock issues', 'success');
+      addLog('Generated 10 cinematic issues with epicenters.');
+      toast('Generated 10 issues (Hotspot Demo)', 'success');
     } catch (error) {
       addLog(`Error: ${error}`);
     } finally {
@@ -155,7 +201,7 @@ export default function DevDashboard() {
     }
   };
 
-  if (userData?.role !== 'dev') {
+  if (auth.currentUser?.email !== 'joydeepmondal9168j@gmail.com') {
     return <Navigate to="/" replace />;
   }
 
@@ -186,7 +232,7 @@ export default function DevDashboard() {
               >
                 <div className="text-left">
                   <p className="font-black text-primary uppercase tracking-widest text-xs mb-1">Mock Generator</p>
-                  <p className="text-[10px] text-outline">Create 5 random issues</p>
+                  <p className="text-[10px] text-outline">Create 10 cinematic issues</p>
                 </div>
                 {running === 'generate' ? <Loader2 className="animate-spin text-primary" /> : <Database className="text-secondary group-hover:text-primary" />}
               </button>

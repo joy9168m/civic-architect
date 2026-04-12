@@ -4,14 +4,18 @@ import Home from './pages/Home';
 import PublicMap from './pages/PublicMap';
 import AdminDashboard from './pages/AdminDashboard';
 import DevDashboard from './pages/DevDashboard';
+import WorkerDashboard from './pages/WorkerDashboard';
 import QuickReport from './pages/QuickReport';
 import IssueDetail from './pages/IssueDetail';
 import Navbar from './components/Navbar';
-import RegistrationModal from './components/RegistrationModal';
+import AuthModal from './components/AuthModal';
 import ToastContainer from './components/Toast';
 
 function AppContent() {
-  const { user, userData, loading, needsRegistration, login, logout, register } = useAuth();
+  const { 
+    user, userData, loading, login, logout,
+    isAuthModalOpen, setAuthModalOpen, loginWithGoogle, loginWithEmail, signupWithEmail
+  } = useAuth();
   const location = useLocation();
   const isHome = location.pathname === '/';
 
@@ -32,16 +36,18 @@ function AppContent() {
           <Route path="/map" element={<PublicMap />} />
           <Route path="/report" element={user ? <QuickReport /> : <Navigate to="/" />} />
           <Route path="/admin" element={userData?.role === 'admin' || userData?.role === 'dev' ? <AdminDashboard /> : <Navigate to="/" />} />
-          <Route path="/dev" element={userData?.role === 'dev' ? <DevDashboard /> : <Navigate to="/" />} />
+          <Route path="/dev" element={user?.email === 'joydeepmondal9168j@gmail.com' ? <DevDashboard /> : <Navigate to="/" />} />
+          <Route path="/worker" element={userData?.role === 'worker' ? <WorkerDashboard /> : <Navigate to="/" />} />
           <Route path="/issue/:id" element={<IssueDetail />} />
         </Routes>
       </main>
-      {needsRegistration && (
-        <RegistrationModal 
-          userEmail={user?.email || null} 
-          onSelect={register} 
-        />
-      )}
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setAuthModalOpen(false)} 
+        loginWithGoogle={(role?: string) => Promise.resolve(loginWithGoogle(role))}
+        loginWithEmail={loginWithEmail}
+        signupWithEmail={signupWithEmail}
+      />
       <ToastContainer />
     </div>
   );

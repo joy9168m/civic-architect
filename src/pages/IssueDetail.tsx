@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import StatusBadge from '../components/StatusBadge';
 import IssueMap from '../components/IssueMap';
 import { toast } from '../components/Toast';
-import { formatDate } from '../lib/utils';
+import { formatDate, calculatePriorityScore } from '../lib/utils';
 
 export default function IssueDetail() {
   const { id } = useParams();
@@ -43,9 +43,13 @@ export default function IssueDetail() {
       setTimeout(() => setShowToast(false), 3000);
     }
 
+    const newUpvotesCount = (issue.upvotes || 0) + (isUpvoted ? -1 : 1);
+    const newPriorityScore = calculatePriorityScore(issue.severity || 'Moderate', newUpvotesCount, issue.duplicateVolume || 0);
+
     await updateDoc(doc(db, 'issues', id), {
       upvotes: increment(isUpvoted ? -1 : 1),
-      upvotedBy: isUpvoted ? arrayRemove(auth.currentUser.uid) : arrayUnion(auth.currentUser.uid)
+      upvotedBy: isUpvoted ? arrayRemove(auth.currentUser.uid) : arrayUnion(auth.currentUser.uid),
+      priorityScore: newPriorityScore
     });
   };
 

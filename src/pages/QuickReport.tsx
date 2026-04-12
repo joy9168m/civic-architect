@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
-import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { analyzeIssueImage } from '../lib/gemini';
 import { Camera, MapPin, Send, X, Loader2, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CATEGORIES, SEVERITY_OPTIONS } from '../lib/constants';
-import { getHaversineDistance, reverseGeocode } from '../lib/utils';
+import { getHaversineDistance, reverseGeocode, forwardGeocode, calculatePriorityScore } from '../lib/utils';
 import { toast } from '../components/Toast';
 
 export default function QuickReport() {
@@ -27,17 +27,41 @@ export default function QuickReport() {
     if (state?.prefilledLocation) {
       setCoords(state.prefilledLocation);
       reverseGeocode(state.prefilledLocation.lat, state.prefilledLocation.lng).then(setAddress);
-    } else if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
-          setCoords(loc);
-          reverseGeocode(loc.lat, loc.lng).then(setAddress);
-        },
-        (error) => console.error("Error getting location", error)
-      );
+    } else {
+      // Best Practice: Attempt high-accuracy HTML5 GPS first.
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const loc = { lat: position.coords.latitude, lng: position.coords.longitude };
+            setCoords(loc);
+            reverseGeocode(loc.lat, loc.lng).then(setAddress);
+          },
+          (error) => {
+            console.warn("GPS failed or blocked, falling back to IP detection...", error);
+            fetchIPLocation();
+          },
+          { enableHighAccuracy: true, timeout: 5000 }
+        );
+      } else {
+        fetchIPLocation();
+      }
     }
   }, [location.state]);
+
+  const fetchIPLocation = () => {
+    fetch('https://ipapi.co/json/')
+      .then(res => res.json())
+      .then(data => {
+        if (data.latitude && data.longitude) {
+          const loc = { lat: data.latitude, lng: data.longitude };
+          setCoords(loc);
+          reverseGeocode(loc.lat, loc.lng).then((addr) => {
+             setAddress(addr || `${data.city}, ${data.region}`);
+          });
+        }
+      })
+      .catch(err => console.error("IP Geolocation failed entirely.", err));
+  };
 
   const checkForDuplicates = async (cat: string, lat: number, lng: number, title: string, description: string) => {
     const range = 0.005;
@@ -103,9 +127,9 @@ export default function QuickReport() {
           await checkForDuplicates(finalCategory, coords.lat, coords.lng, analysis.title || '', analysis.description || '');
         }
         setStep(3);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Analysis failed", error);
-        toast('Image analysis failed. You can still fill in the details manually.', 'error');
+        toast(error.message || 'Image analysis failed. You can still fill in the details manually.', 'error');
         setStep(3);
       } finally {
         setAnalyzing(false);
@@ -117,22 +141,80 @@ export default function QuickReport() {
   const handleSubmit = async () => {
     if (!auth.currentUser) return;
     setSubmitting(true);
+    
+    // Resolve location properly if they completely manually typed a new address
+    let finalLat = coords?.lat || 0;
+    let finalLng = coords?.lng || 0;
+    if (address && address.length > 5) {
+       const geocoded = await forwardGeocode(address);
+       if (geocoded) {
+          finalLat = geocoded.lat;
+          finalLng = geocoded.lng;
+       }
+    }
+
     try {
+      // Automatic Merging logic if a strong duplicate is found
+      if (duplicates.length > 0 && duplicates[0].duplicateScore > 0.8) {
+        const parentIssue = duplicates[0];
+        const newDupVol = (parentIssue.duplicateVolume || 0) + 1;
+        const newPriorityScore = calculatePriorityScore(parentIssue.severity, parentIssue.upvotes || 0, newDupVol);
+        
+        // Update Parent Priority & Counter
+        await updateDoc(doc(db, 'issues', parentIssue.id), {
+          duplicateVolume: increment(1),
+          priorityScore: newPriorityScore
+        });
+
+        // Add this report as a merged duplicate
+        await addDoc(collection(db, 'issues'), {
+          title: issueData?.title || `Reported ${category}`,
+          description: issueData?.description || 'No description provided.',
+          category,
+          severity: issueData?.severity || 'Moderate',
+          status: 'Resolved', // Automatically hide duplicate from main maps
+          isDuplicate: true,
+          parentIssueId: parentIssue.id,
+          reportedAt: new Date().toISOString(),
+          reportedBy: auth.currentUser.uid,
+          authorName: auth.currentUser.displayName,
+          imageUrl: image,
+          upvotes: 0,
+          upvotedBy: [],
+          duplicateVolume: 0,
+          priorityScore: 0,
+          address: address || `${finalLat.toFixed(4)}, ${finalLng.toFixed(4)}`,
+          lat: finalLat,
+          lng: finalLng,
+        });
+
+        toast(`Duplicate detected! Merged with Report #${parentIssue.id.slice(0, 5)} to increase priority.`, 'success');
+        navigate(`/issue/${parentIssue.id}`);
+        return;
+      }
+
+      // Normal Issue Creation
+      const initialPriority = calculatePriorityScore(issueData?.severity || 'Moderate', 0, 0);
+
       await addDoc(collection(db, 'issues'), {
         title: issueData?.title || `Reported ${category}`,
         description: issueData?.description || 'No description provided.',
         category,
         severity: issueData?.severity || 'Moderate',
         status: 'Pending',
+        isDuplicate: false,
+        parentIssueId: null,
         reportedAt: new Date().toISOString(),
         reportedBy: auth.currentUser.uid,
         authorName: auth.currentUser.displayName,
         imageUrl: image,
         upvotes: 0,
         upvotedBy: [],
-        address: address || `${coords?.lat?.toFixed(4)}, ${coords?.lng?.toFixed(4)}`,
-        lat: coords?.lat || 0,
-        lng: coords?.lng || 0,
+        duplicateVolume: 0,
+        priorityScore: initialPriority,
+        address: address || `${finalLat.toFixed(4)}, ${finalLng.toFixed(4)}`,
+        lat: finalLat,
+        lng: finalLng,
       });
       toast('Report submitted successfully!', 'success');
       navigate('/');
@@ -291,11 +373,16 @@ export default function QuickReport() {
                       {SEVERITY_OPTIONS.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-[200px]">
                     <label className="text-xs font-black uppercase text-outline tracking-widest">Location</label>
-                    <div className="flex items-center gap-2 py-2">
+                    <div className="flex items-center gap-2 py-2 border-b border-outline-variant">
                       <MapPin size={16} className="text-primary shrink-0" />
-                      <span className="text-sm font-bold truncate">{address || 'Detecting...'}</span>
+                      <input 
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="Detecting... (Type exact address)"
+                        className="w-full bg-transparent text-sm font-bold text-primary outline-none truncate focus:border-primary"
+                      />
                     </div>
                   </div>
                 </div>
@@ -304,10 +391,14 @@ export default function QuickReport() {
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className="w-full py-5 rounded-3xl bg-primary text-white text-xl font-black shadow-2xl hover:bg-primary-container transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50"
+                className={`w-full py-5 rounded-3xl text-white text-xl font-black shadow-2xl transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 ${
+                  duplicates.length > 0 && duplicates[0].duplicateScore > 0.8
+                    ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+                    : 'bg-primary hover:bg-primary-container shadow-primary/20'
+                }`}
               >
                 {submitting ? <Loader2 className="animate-spin" /> : <Send size={24} />}
-                Submit Report
+                {duplicates.length > 0 && duplicates[0].duplicateScore > 0.8 ? 'Merge Report & Boost Priority' : 'Submit Report'}
               </button>
             </motion.section>
           )}

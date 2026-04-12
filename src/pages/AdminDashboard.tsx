@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, query, orderBy, where, onSnapshot, updateDoc, doc, deleteDoc, addDoc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { useAuth } from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ import { getStatusClasses, getSeverityClasses, formatDate, formatTime } from '..
 export default function AdminDashboard() {
   const { userData, loading: authLoading } = useAuth();
   const [issues, setIssues] = useState<any[]>([]);
+  const [workers, setWorkers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -34,16 +35,27 @@ export default function AdminDashboard() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteText, setNoteText] = useState('');
   const [savingNote, setSavingNote] = useState(false);
+  // Full screen image view
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'issues'), orderBy('reportedAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeIssues = onSnapshot(q, (snapshot) => {
       setIssues(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'issues');
     });
-    return () => unsubscribe();
+
+    const wq = query(collection(db, 'users'), where('role', '==', 'worker'));
+    const unsubscribeWorkers = onSnapshot(wq, (snapshot) => {
+      setWorkers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })));
+    });
+
+    return () => {
+      unsubscribeIssues();
+      unsubscribeWorkers();
+    };
   }, []);
 
   const handleMarkerClick = (issue: any) => {
@@ -90,6 +102,15 @@ export default function AdminDashboard() {
     try {
       await updateDoc(doc(db, 'issues', id), { status });
       toast(`Status updated to "${status}"`, 'info');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `issues/${id}`);
+    }
+  };
+
+  const assignWorker = async (id: string, workerId: string) => {
+    try {
+      await updateDoc(doc(db, 'issues', id), { assignedWorkerId: workerId });
+      toast(workerId ? 'Worker assigned' : 'Worker unassigned', 'success');
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `issues/${id}`);
     }
@@ -252,6 +273,7 @@ export default function AdminDashboard() {
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Severity</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Status</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Admin Note</th>
+                    <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Assigned Crew</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline">Reported</th>
                     <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-outline text-right">Actions</th>
                   </tr>
@@ -265,11 +287,21 @@ export default function AdminDashboard() {
                     >
                       <td className="px-6 py-5">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-xl overflow-hidden bg-surface-container flex-shrink-0">
+                          <div 
+                            className={`w-12 h-12 rounded-xl overflow-hidden bg-surface-container flex-shrink-0 relative ${issue.imageUrl ? 'cursor-pointer hover:ring-2 hover:ring-primary transition-all group/image' : ''}`}
+                            onClick={() => issue.imageUrl && setSelectedImage(issue.imageUrl)}
+                          >
                             {issue.imageUrl ? (
-                              <img src={issue.imageUrl} alt="" className="w-full h-full object-cover" />
+                              <>
+                                <img src={issue.imageUrl} alt="" className="w-full h-full object-cover group-hover/image:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-opacity">
+                                  <Search size={16} className="text-white" />
+                                </div>
+                              </>
                             ) : (
-                              <div className="w-full h-full bg-surface-container"></div>
+                              <div className="w-full h-full bg-surface-container-high flex flex-col items-center justify-center text-outline/30">
+                                <Search size={12} />
+                              </div>
                             )}
                           </div>
                           <div>
@@ -328,6 +360,20 @@ export default function AdminDashboard() {
                             <span className="truncate">{issue.adminNote || 'Add note...'}</span>
                           </button>
                         )}
+                      </td>
+                      <td className="px-6 py-5">
+                        <select
+                          value={issue.assignedWorkerId || ''}
+                          onChange={(e) => assignWorker(issue.id, e.target.value)}
+                          className={`text-[10px] font-black rounded-full uppercase px-3 py-1 outline-none cursor-pointer border ${
+                            issue.assignedWorkerId ? 'bg-secondary/10 text-secondary border-secondary/20' : 'bg-surface-container-low text-outline border-outline-variant/30'
+                          }`}
+                        >
+                          <option value="">Unassigned</option>
+                          {workers.map(w => (
+                            <option key={w.uid} value={w.uid}>{w.displayName}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-6 py-5">
                         <p className="text-xs font-bold text-primary">{formatDate(issue.reportedAt)}</p>
@@ -441,6 +487,36 @@ export default function AdminDashboard() {
                   {isSubmitting ? 'Creating...' : 'Create Report'}
                 </button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Image Preview Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 sm:p-10"
+            onClick={() => setSelectedImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              className="relative max-w-5xl w-full max-h-full flex flex-col items-center justify-center rounded-3xl"
+              onClick={e => e.stopPropagation()}
+            >
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-12 right-0 sm:-right-8 p-2 bg-white/10 rounded-full text-white hover:bg-white/20 transition-colors z-[210] backdrop-blur-sm shadow-xl"
+                title="Close View"
+              >
+                <X size={24} />
+              </button>
+              <img src={selectedImage} alt="Issue Full Preview" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
             </motion.div>
           </motion.div>
         )}

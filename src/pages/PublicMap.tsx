@@ -3,7 +3,7 @@ import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import IssueMap from '../components/IssueMap';
 import StatusBadge from '../components/StatusBadge';
-import { Map as MapIcon, Search, Info } from 'lucide-react';
+import { Map as MapIcon, Search, Info, ChevronLeft, ChevronRight, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CATEGORY_IDS } from '../lib/constants';
@@ -13,6 +13,8 @@ export default function PublicMap() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [mapMode, setMapMode] = useState<'cluster' | 'heat'>('cluster');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -40,16 +42,37 @@ export default function PublicMap() {
   };
 
   return (
-    <div className="h-[calc(100vh-80px)] flex flex-col lg:flex-row overflow-hidden bg-surface">
+    <div className="h-[calc(100vh-80px)] flex flex-col lg:flex-row overflow-hidden bg-surface relative">
       {/* Sidebar Controls */}
-      <div className="w-full lg:w-96 bg-white border-r border-outline-variant/20 flex flex-col shadow-xl z-10">
-        <div className="p-6 border-b border-outline-variant/10">
-          <h1 className="font-headline text-2xl font-black text-primary flex items-center gap-2 mb-2">
-            <MapIcon size={28} />
-            Public Map
-          </h1>
-          <p className="text-xs text-outline font-bold uppercase tracking-widest">Live Infrastructure Feed</p>
+      <div 
+        className={`absolute lg:relative w-full lg:w-96 h-full bg-white border-r border-outline-variant/20 flex flex-col shadow-2xl lg:shadow-xl z-30 transition-all duration-500 ease-in-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0 lg:ml-[-24rem]'
+        }`}
+      >
+        <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between">
+          <div>
+            <h1 className="font-headline text-2xl font-black text-primary flex items-center gap-2 mb-2">
+              <MapIcon size={28} />
+              Public Map
+            </h1>
+            <p className="text-xs text-outline font-bold uppercase tracking-widest">Live Infrastructure Feed</p>
+          </div>
+          <button 
+            className="lg:hidden p-2 text-outline hover:bg-surface-container rounded-xl"
+            onClick={() => setIsSidebarOpen(false)}
+          >
+            <ChevronLeft size={24} />
+          </button>
         </div>
+
+        {/* Desktop Sidebar Handle - Attached directly to sidebar edge */}
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="hidden lg:flex absolute top-1/2 -right-8 -translate-y-1/2 w-8 h-16 bg-white border-y border-r border-outline-variant/20 border-l-0 rounded-r-xl shadow-xl items-center justify-center cursor-pointer hover:bg-surface-container-lowest text-outline hover:text-primary transition-all z-[100]"
+          title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {isSidebarOpen ? <ChevronLeft size={20} strokeWidth={3} /> : <ChevronRight size={20} strokeWidth={3} />}
+        </button>
 
         <div className="p-6 space-y-6 overflow-y-auto flex-1 scrollbar-hide">
           <div className="relative">
@@ -130,8 +153,42 @@ export default function PublicMap() {
       </div>
 
       {/* Map View */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative z-10">
+        {/* Mobile Floating Toggle Button */}
+        <button
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          className="lg:hidden absolute top-4 left-4 z-[9999] bg-white p-3 rounded-2xl shadow-xl border border-outline-variant/20 text-primary hover:bg-surface-container-low transition-all hover:scale-105 active:scale-95"
+          title={isSidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+        >
+          {isSidebarOpen ? <ChevronLeft size={20} strokeWidth={3} /> : <Menu size={20} strokeWidth={3} />}
+        </button>
+
+        {/* Floating Map Mode Toggle (Non-Distracting) */}
+        <div className="absolute top-4 right-4 z-[9999] bg-white/90 backdrop-blur-md p-1 rounded-2xl shadow-lg border border-outline-variant/20 flex items-center overflow-hidden">
+          <button
+            onClick={() => setMapMode('cluster')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              mapMode === 'cluster' 
+                ? 'bg-primary text-white shadow-md' 
+                : 'text-outline hover:text-primary hover:bg-surface-container-low'
+            }`}
+          >
+            Pins
+          </button>
+          <button
+            onClick={() => setMapMode('heat')}
+            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+              mapMode === 'heat' 
+                ? 'bg-error text-white shadow-md' 
+                : 'text-outline hover:text-error hover:bg-surface-container-low'
+            }`}
+          >
+            Heatmap
+          </button>
+        </div>
+
         <IssueMap 
+          mode={mapMode}
           issues={filteredIssues} 
           className="w-full h-full" 
           onMapClick={handleMapClick}
