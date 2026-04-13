@@ -214,7 +214,7 @@ The AI config is in `src/lib/gemini.ts`. It uses structured output (`responseMim
 
 ---
 
-## 🤝 How to Contribute (for John Dick, Onkit & Debo)
+## 🤝 How to Contribute 
 
 ### Git Workflow
 
